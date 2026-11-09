@@ -92,12 +92,13 @@ async function tryCode(l,c){
   const ml=(l==='all'?[]:(MASTER[l]||[])).concat(MASTER.all);let got=null;
   if(ml.includes(U))got=MASTER.all.includes(U)?'all':l;
   else{try{const d=await getDoc(doc(fs,'codes',U));if(d.exists()){const x=d.data(),v=String(x.lv);
+      if(x.blocked){toast('تم إيقاف هذا الكود ⛔');return}
       if(x.exp&&x.exp<Date.now()){toast('انتهت صلاحية الكود ⌛');return}
       const mine=ls.get('uc').includes(U);
       if(x.max&&!mine&&(x.used||0)>=x.max){toast('الكود وصل للحد الأقصى للاستخدام 🚫');return}
       if(v==='all'||v===l){got=v;if(x.max&&!mine){try{await updateDoc(doc(fs,'codes',U),{used:increment(1)});const q=ls.get('uc');q.push(U);ls.set('uc',q)}catch(e){}}}}}catch(e){}}
   if(!got){toast('الكود غير صحيح ❌');return}
-  const u=ls.get('unl');u.push(got);ls.set('unl',u);toast('تم فتح الكورس ✅');render()
+  const u=ls.get('unl');u.push(got);ls.set('unl',u);const kk=ls.get('uk');kk.push({c:U,l:got});ls.set('uk',kk);toast('تم فتح الكورس ✅');render()
 }
 
 let editId=null;
@@ -134,7 +135,18 @@ async function openLink(u){
   catch(e){fr.src=u}
   $('#ov').style.display='flex'
 }
+async function recheck(){
+  const k=ls.get('uk');
+  if(!k.length){if(ls.get('unl').length){ls.set('unl',[]);render()}return}
+  const ok=[];
+  for(const e of k){
+    if([].concat(MASTER.all,MASTER[e.l]||[]).includes(e.c)){ok.push(e);continue}
+    try{const d=await getDoc(doc(fs,'codes',e.c)),x=d.exists()?d.data():null;if(x&&!x.blocked&&!(x.exp&&x.exp<Date.now()))ok.push(e)}catch(err){ok.push(e)}
+  }
+  if(ok.length!==k.length){ls.set('uk',ok);ls.set('unl',ok.map(e=>e.l));toast('تم إلغاء وصولك لبعض الكورسات 🔒');render()}
+}
 async function openCourse(c){
+  if(c.lv!=='0'){await recheck();if(!unlocked(c.lv)){toast('وصولك للكورس غير متاح 🔒');return}}
   hit('c_'+c.id);
   if(c.u){await openLink(c.u);return}
 
@@ -203,20 +215,28 @@ function adminView(){
   const un=S.qs.filter(q=>!q.answer);
   root.innerHTML=`<div class="grid">
   <div class="card"><h3>📢 إعلان للطلاب</h3><input id="an" placeholder="نص الإعلان" value="${esc(S.ann)}"><div class="row"><button class="btn gold" id="as2">نشر</button><button class="btn red" id="ac">حذف الإعلان</button></div></div>
-  <div class="card"><h3>🔑 مولّد الأكواد</h3><select id="cl"><option value="1">المستوى 1</option><option value="2">المستوى 2</option><option value="3">المستوى 3</option><option value="all">VIP (الكل)</option></select><input id="cn" placeholder="اسم الطالب / ملاحظة"><input id="cm" type="number" min="1" placeholder="أقصى عدد استخدامات (فارغ = بلا حد)"><input id="ce" type="number" min="1" placeholder="صلاحية بالأيام (فارغ = بلا انتهاء)"><button class="btn gold" id="cg">توليد وحفظ الكود</button></div>
+  <div class="card"><h3>🔑 مولّد الأكواد</h3><select id="cl"><option value="1">المستوى 1</option><option value="2">المستوى 2</option><option value="3">المستوى 3</option><option value="all">VIP (الكل)</option></select><input id="cc" dir="ltr" placeholder="الكود: اكتبه بنفسك أو اتركه فارغاً للتوليد التلقائي" maxlength="24"><button class="btn" id="sgb" type="button">🎲 اقترح أكواد</button><div class="row" id="sg" style="margin:6px 0"></div><input id="cn" placeholder="اسم الطالب / ملاحظة"><input id="cm" type="number" min="1" placeholder="أقصى عدد استخدامات (فارغ = بلا حد)"><input id="ce" type="number" min="1" placeholder="صلاحية بالأيام (فارغ = بلا انتهاء)"><button class="btn gold" id="cg">توليد وحفظ الكود</button></div>
   <div class="card"><h3>📤 نشر مذكرة / اختبار</h3><select id="ag">${GR.map((g,i)=>`<option value="${i}">${g}</option>`).join('')}</select><select id="as"><option value="note">مذكرات وكتب</option><option value="exam">اختبارات</option></select><input id="at" placeholder="العنوان"><input id="af" type="file"><div class="muted" style="text-align:center">— أو —</div><input id="au" dir="ltr" placeholder="🔗 رابط (Drive / Forms) يبدأ بـ https"><label class="muted">يظهر للطلاب في (اختياري):</label><input id="ad" type="datetime-local"><button class="btn em" id="ap">نشر</button></div>
   <div class="card"><h3>🎓 رفع كورس</h3><input id="kt" placeholder="اسم الكورس"><select id="kl"><option value="0">مجاني للجميع</option><option value="1">يفتح بكود المستوى 1</option><option value="2">يفتح بكود المستوى 2</option><option value="3">يفتح بكود المستوى 3</option><option value="all">VIP فقط</option></select><input id="kd" placeholder="وصف قصير للكورس (اختياري)" maxlength="120"><label class="muted">صورة غلاف (اختياري):</label><input id="kc" type="file" accept="image/*"><input id="kf" type="file" accept=".html,text/html"><div class="muted" style="text-align:center">— أو —</div><input id="ku" dir="ltr" placeholder="🔗 الصق رابط الكورس هنا (https://...)"><button class="btn em" id="ak">رفع ونشر الكورس</button><p class="muted">اختار ملف HTML أو الصق رابط (لو حطيت الاتنين الملف هو اللي يترفع). الرفع قد يأخذ دقيقة.</p></div></div>
   <h3>💬 أسئلة تنتظر ردك (${un.length})</h3>${un.map((q,i)=>`<div class="item"><span><b>${esc(q.name)}:</b> ${esc(q.text)}<br><span class="muted">${esc((S.items.find(x=>x.id===q.item)||{}).t||'')}</span></span><span class="row"><input id="ra${i}" placeholder="ردك" style="width:200px;margin:0"><button class="btn em" data-ra="${i}">رد</button><button class="btn red" data-dq="${i}">🗑️</button></span></div>`).join('')}
   <h3>📊 درجات الطلاب (${S.scores.length})</h3>${S.scores.map(x=>`<div class="item"><span><b>${esc(x.name)}</b> — ${esc(x.score)} <span class="muted">· ${esc(x.title)} · ${GR[x.g]}</span></span></div>`).join('')}
   <h3>📈 الزيارات</h3>${st.length?st.map(x=>`<div class="item"><span>${esc(x[0])}</span><b>${x[1]}</b></div>`).join(''):'<p class="muted">لا زيارات بعد.</p>'}
-  <h3>الأكواد (${S.codes.length})</h3>${S.codes.map((c,i)=>`<div class="item"><span dir="ltr"><b>${esc(c.code)}</b></span><span class="muted">${esc(c.name||'')} · ${c.lv==='all'?'VIP':'م'+c.lv} · 👥 ${c.used||0}/${c.max||'∞'}${c.exp?' · ⌛ '+(c.exp<Date.now()?'منتهي':new Date(c.exp).toLocaleDateString('ar-EG')):''}</span><span class="row"><button class="btn" data-cp="${i}">نسخ</button><button class="btn red" data-dc="${i}">🗑️</button></span></div>`).join('')}
+  <h3>الأكواد (${S.codes.length})</h3>${S.codes.map((c,i)=>`<div class="item"><span dir="ltr"><b>${esc(c.code)}</b></span><span class="muted">${esc(c.name||'')} · ${c.lv==='all'?'VIP':'م'+c.lv} ${c.blocked?' · ⛔ محظور':''} · 👥 ${c.used||0}/${c.max||'∞'}${c.exp?' · ⌛ '+(c.exp<Date.now()?'منتهي':new Date(c.exp).toLocaleDateString('ar-EG')):''}</span><span class="row"><button class="btn" data-bk="${i}">${c.blocked?'✅ تفعيل':'⛔ حظر'}</button><button class="btn" data-cp="${i}">نسخ</button><button class="btn red" data-dc="${i}">🗑️</button></span></div>`).join('')}
   <h3>الكورسات المرفوعة (${S.courses.length})</h3>${S.courses.map((c,i)=>`<div class="item"><span>${esc(c.t)} <span class="muted">· ${c.lv==='0'?'مجاني':c.lv==='all'?'VIP':'م'+c.lv}${c.u?' · 🔗 رابط':''}</span></span><button class="btn red" data-dk="${i}">🗑️ حذف</button></div>`).join('')}
   <h3>المحتوى المنشور (${S.items.length})</h3>${S.items.map((x,i)=>`<div class="item"><span>${esc(x.t)} <span class="muted">· ${GR[x.g]} · ${x.s==='note'?'مذكرة':'اختبار'}${x.fid?' · 📎 ملف':''}${x.at&&x.at>Date.now()?' · ⏰ مجدولة':''}</span></span><span class="row"><button class="btn" data-ed="${i}">✏️ تعديل</button><button class="btn red" data-di="${i}">🗑️ حذف</button></span></div>`).join('')}
   <button class="btn" id="lo">خروج</button>`;
   $('#as2').onclick=()=>setDoc(doc(fs,'site','ann'),{text:$('#an').value.trim(),ts:Date.now()}).then(()=>toast('تم نشر الإعلان ✅')).catch(e=>toast('تعذر النشر'));
   $('#ac').onclick=()=>setDoc(doc(fs,'site','ann'),{text:'',ts:Date.now()}).then(()=>toast('تم حذف الإعلان'));
-  $('#cg').onclick=async()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c='FC-';for(let i=0;i<8;i++){c+=a[Math.floor(Math.random()*a.length)];if(i==3)c+='-'}
-    try{await setDoc(doc(fs,'codes',c),(()=>{const o={lv:$('#cl').value,name:$('#cn').value.trim(),ts:Date.now(),used:0},m=+$('#cm').value,e=+$('#ce').value;if(m>0)o.max=m;if(e>0)o.exp=Date.now()+e*864e5;return o})());try{await navigator.clipboard.writeText(c)}catch(e){}toast('تم توليد الكود '+c)}catch(e){toast('تعذر الحفظ: '+e.code)}};
+  const taken=c=>S.codes.some(x=>x.code===c)||[].concat(MASTER.all,MASTER[1],MASTER[2],MASTER[3]).includes(c);
+  const rnd=(p,n)=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c=p;for(let i=0;i<n;i++)c+=a[Math.floor(Math.random()*a.length)];return c};
+  $('#sgb').onclick=()=>{const l=$('#cl').value,p=l==='all'?'VIP-':'L'+l+'-',out=[];while(out.length<6){const c=rnd(p,4);if(!taken(c)&&!out.includes(c))out.push(c)}
+    $('#sg').innerHTML=out.map(c=>`<button class="btn" type="button" data-sg="${c}" dir="ltr">${c}</button>`).join('');
+    $('#sg').querySelectorAll('[data-sg]').forEach(b=>b.onclick=()=>{$('#cc').value=b.dataset.sg})};
+  $('#cg').onclick=async()=>{let c=($('#cc').value||'').trim().toUpperCase();
+    if(!c){do{c=rnd('FC-',4)+'-'+rnd('',4)}while(taken(c))}
+    else if(!/^[A-Z0-9-]{4,24}$/.test(c)){toast('الكود: حروف إنجليزي وأرقام وشرطة فقط (من 4 إلى 24)');return}
+    if(taken(c)){toast('الكود ده موجود بالفعل، اختار غيره');return}
+    try{await setDoc(doc(fs,'codes',c),(()=>{const o={lv:$('#cl').value,name:$('#cn').value.trim(),ts:Date.now(),used:0},m=+$('#cm').value,e=+$('#ce').value;if(m>0)o.max=m;if(e>0)o.exp=Date.now()+e*864e5;return o})());try{await navigator.clipboard.writeText(c)}catch(e){}toast('تم حفظ الكود '+c)}catch(e){toast('تعذر الحفظ: '+(e.code||e.message))}};
   const eI=editId&&S.items.find(x=>x.id===editId);
   if(eI){$('#ag').value=eI.g;$('#as').value=eI.s;$('#at').value=eI.t;$('#au').value=eI.u||'';if(eI.at)$('#ad').value=new Date(eI.at-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);$('#ap').textContent='💾 حفظ التعديل'}
   root.querySelectorAll('[data-ed]').forEach(b=>b.onclick=()=>{editId=S.items[+b.dataset.ed].id;render();window.scrollTo({top:0,behavior:'smooth'});toast('عدّل البيانات ثم اضغط حفظ التعديل ✏️')});
@@ -240,6 +260,7 @@ function adminView(){
   root.querySelectorAll('[data-ra]').forEach(b=>b.onclick=()=>{const q=un[+b.dataset.ra],v=$('#ra'+b.dataset.ra).value.trim();if(!v)return;updateDoc(doc(fs,'questions',q.id),{answer:v}).then(()=>toast('تم الرد ✅'))});
   root.querySelectorAll('[data-dq]').forEach(b=>b.onclick=()=>deleteDoc(doc(fs,'questions',un[+b.dataset.dq].id)).then(()=>toast('تم الحذف 🗑️')));
   root.querySelectorAll('[data-cp]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(S.codes[b.dataset.cp].code);toast('تم النسخ ✅')}catch(e){toast('تعذر النسخ')}});
+  root.querySelectorAll('[data-bk]').forEach(b=>b.onclick=async()=>{const c=S.codes[+b.dataset.bk];try{await updateDoc(doc(fs,'codes',c.code),{blocked:!c.blocked});toast(c.blocked?'تم التفعيل ✅':'تم الحظر ⛔')}catch(e){toast('تعذر التنفيذ')}});
   root.querySelectorAll('[data-dc]').forEach(b=>b.onclick=()=>deleteDoc(doc(fs,'codes',S.codes[+b.dataset.dc].code)).then(()=>toast('تم الحذف 🗑️')));
   root.querySelectorAll('[data-dk]').forEach(b=>b.onclick=()=>delCourse(S.courses[+b.dataset.dk]));
   root.querySelectorAll('[data-di]').forEach(b=>b.onclick=async()=>{const x=S.items[+b.dataset.di];try{if(x.fid)for(let k=0;k<x.n;k++)await deleteDoc(doc(fs,'file_chunks',x.fid+'_'+k));await deleteDoc(doc(fs,'portal_items',x.id));toast('تم الحذف 🗑️')}catch(e){toast('تعذر الحذف')}});
@@ -255,6 +276,7 @@ sn(query(collection(fs,'portal_items'),orderBy('ts','desc')),s=>{S.items=s.docs.
 sn(query(collection(fs,'courses'),orderBy('ts','asc')),s=>{S.courses=s.docs.map(d=>({id:d.id,...d.data()}));render()});
 sn(query(collection(fs,'questions'),orderBy('ts','desc'),limit(300)),s=>{S.qs=s.docs.map(d=>({id:d.id,...d.data()}));render()});
 sn(doc(fs,'site','ann'),d=>{S.ann=d.exists()?(d.data().text||''):'';showAnn()});
+recheck();
 onAuthStateChanged(au,u=>{admin=!!u&&u.email===ADMIN;unsubs.forEach(f=>f());unsubs=[];S.codes=[];S.scores=[];S.stats={};
   if(admin){
     unsubs.push(onSnapshot(collection(fs,'codes'),s=>{S.codes=s.docs.map(d=>({code:d.id,...d.data()})).sort((a,b)=>(b.ts||0)-(a.ts||0));render()},()=>{}));
