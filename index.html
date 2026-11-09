@@ -100,6 +100,16 @@ const GUARD="<script>(function(){var r=history.replaceState;history.replaceState
 function mk(h){if(_bu)URL.revokeObjectURL(_bu);
   h=/<head[^>]*>/i.test(h)?h.replace(/<head[^>]*>/i,m=>m+GUARD):/<html[^>]*>/i.test(h)?h.replace(/<html[^>]*>/i,m=>m+GUARD):GUARD+h;
   _bu=URL.createObjectURL(new Blob([h],{type:'text/html;charset=utf-8'}));return _bu}
+async function openFile(it){
+  if(!it)return;const isH=/html/i.test(it.mime||'');const w=isH?null:window.open('','_blank');
+  toast('جارٍ فتح الملف…');hit('f_'+it.id);
+  try{let d='';for(let k=0;k<it.n;k++){const x=await getDoc(doc(fs,'file_chunks',it.fid+'_'+k));d+=x.data().d}
+    const by=Uint8Array.from(atob(d),c=>c.charCodeAt(0)),bl=new Blob([by],{type:it.mime||'application/octet-stream'});
+    if(isH){const h=await bl.text();const u=mk(h);$('#fr').removeAttribute('srcdoc');$('#fr').src=u;const ex=$('#ext');ex.href=u;ex.style.display='inline-block';$('#ov').style.display='flex';return}
+    const u=URL.createObjectURL(bl);
+    if(w)w.location.href=u;else{const a=document.createElement('a');a.href=u;a.download=it.fn||'file';document.body.appendChild(a);a.click();a.remove()}
+  }catch(e){if(w)w.close();toast('تعذر فتح الملف')}
+}
 async function openLink(u){
   u=safe(u);const g=u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);if(g)u='https://raw.githubusercontent.com/'+g[1]+'/'+g[2]+'/'+g[3];
   const ex=$('#ext');ex.href=u;ex.style.display='inline-block';toast('جارٍ فتح الكورس…');
@@ -159,8 +169,9 @@ function portal(){
   const items=S.items.filter(i=>i.g===grade&&i.s===sec&&vis(i));
   root.innerHTML=`<div class="row"><button class="btn" id="bk">→ كل الصفوف</button><h3 style="margin:0;color:var(--gold)">${GR[grade]}</h3></div>
   <div class="row" style="margin:10px 0"><button class="tab ${sec==='note'?'on':''}" data-s="note">📄 مذكرات وكتب</button><button class="tab ${sec==='exam'?'on':''}" data-s="exam">📝 اختبارات</button></div>
-  ${items.length?items.map(i=>`<div class="item2"><div class="item" style="margin:0;border:0"><b>${esc(i.t)}</b><span class="row"><a class="btn gold" target="_blank" rel="noopener" href="${esc(safe(i.u))}">${sec==='note'?'👁️ فتح / تحميل':'ابدأ'}</a>${sec==='exam'?`<button class="btn em" data-sb="${i.id}">📊 درجتي</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${WA}?text=${encodeURIComponent('درجتي في '+i.t+' ('+GR[i.g]+'): ')}">📲 واتساب</a>`:''}<button class="btn" data-qb="${i.id}">💬 أسئلة (${S.qs.filter(q=>q.item===i.id).length})</button></span></div>${openQ===i.id?qBox(i):''}${openS===i.id?sBox(i):''}</div>`).join(''):'<p class="muted">لا يوجد محتوى منشور لهذا القسم بعد.</p>'}`;
+  ${items.length?items.map(i=>`<div class="item2"><div class="item" style="margin:0;border:0"><b>${esc(i.t)}</b><span class="row">${i.fid?`<button class="btn gold" data-fo="${i.id}">${sec==='note'?'👁️ فتح / تحميل':'ابدأ'}</button>`:`<a class="btn gold" target="_blank" rel="noopener" href="${esc(safe(i.u))}">${sec==='note'?'👁️ فتح / تحميل':'ابدأ'}</a>`}${sec==='exam'?`<button class="btn em" data-sb="${i.id}">📊 درجتي</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${WA}?text=${encodeURIComponent('درجتي في '+i.t+' ('+GR[i.g]+'): ')}">📲 واتساب</a>`:''}<button class="btn" data-qb="${i.id}">💬 أسئلة (${S.qs.filter(q=>q.item===i.id).length})</button></span></div>${openQ===i.id?qBox(i):''}${openS===i.id?sBox(i):''}</div>`).join(''):'<p class="muted">لا يوجد محتوى منشور لهذا القسم بعد.</p>'}`;
   $('#bk').onclick=()=>{grade=null;portal()};
+  root.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>openFile(S.items.find(x=>x.id===b.dataset.fo)));
   root.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sec=b.dataset.s;openQ=openS=null;portal()});
   root.querySelectorAll('[data-qb]').forEach(b=>b.onclick=()=>{openQ=openQ===b.dataset.qb?null:b.dataset.qb;openS=null;portal()});
   root.querySelectorAll('[data-sb]').forEach(b=>b.onclick=()=>{openS=openS===b.dataset.sb?null:b.dataset.sb;openQ=null;portal()});
@@ -177,29 +188,39 @@ function adminView(){
   root.innerHTML=`<div class="grid">
   <div class="card"><h3>📢 إعلان للطلاب</h3><input id="an" placeholder="نص الإعلان" value="${esc(S.ann)}"><div class="row"><button class="btn gold" id="as2">نشر</button><button class="btn red" id="ac">حذف الإعلان</button></div></div>
   <div class="card"><h3>🔑 مولّد الأكواد</h3><select id="cl"><option value="1">المستوى 1</option><option value="2">المستوى 2</option><option value="3">المستوى 3</option><option value="all">VIP (الكل)</option></select><input id="cn" placeholder="اسم الطالب / ملاحظة"><button class="btn gold" id="cg">توليد وحفظ الكود</button></div>
-  <div class="card"><h3>📤 نشر مذكرة / اختبار</h3><select id="ag">${GR.map((g,i)=>`<option value="${i}">${g}</option>`).join('')}</select><select id="as"><option value="note">مذكرات وكتب</option><option value="exam">اختبارات</option></select><input id="at" placeholder="العنوان"><input id="au" dir="ltr" placeholder="رابط (Drive / Forms) يبدأ بـ https"><label class="muted">يظهر للطلاب في (اختياري):</label><input id="ad" type="datetime-local"><button class="btn em" id="ap">نشر</button></div>
+  <div class="card"><h3>📤 نشر مذكرة / اختبار</h3><select id="ag">${GR.map((g,i)=>`<option value="${i}">${g}</option>`).join('')}</select><select id="as"><option value="note">مذكرات وكتب</option><option value="exam">اختبارات</option></select><input id="at" placeholder="العنوان"><input id="af" type="file"><div class="muted" style="text-align:center">— أو —</div><input id="au" dir="ltr" placeholder="🔗 رابط (Drive / Forms) يبدأ بـ https"><label class="muted">يظهر للطلاب في (اختياري):</label><input id="ad" type="datetime-local"><button class="btn em" id="ap">نشر</button></div>
   <div class="card"><h3>🎓 رفع كورس</h3><input id="kt" placeholder="اسم الكورس"><select id="kl"><option value="0">مجاني للجميع</option><option value="1">يفتح بكود المستوى 1</option><option value="2">يفتح بكود المستوى 2</option><option value="3">يفتح بكود المستوى 3</option><option value="all">VIP فقط</option></select><input id="kf" type="file" accept=".html,text/html"><div class="muted" style="text-align:center">— أو —</div><input id="ku" dir="ltr" placeholder="🔗 الصق رابط الكورس هنا (https://...)"><button class="btn em" id="ak">رفع ونشر الكورس</button><p class="muted">اختار ملف HTML أو الصق رابط (لو حطيت الاتنين الملف هو اللي يترفع). الرفع قد يأخذ دقيقة.</p></div></div>
   <h3>💬 أسئلة تنتظر ردك (${un.length})</h3>${un.map((q,i)=>`<div class="item"><span><b>${esc(q.name)}:</b> ${esc(q.text)}<br><span class="muted">${esc((S.items.find(x=>x.id===q.item)||{}).t||'')}</span></span><span class="row"><input id="ra${i}" placeholder="ردك" style="width:200px;margin:0"><button class="btn em" data-ra="${i}">رد</button><button class="btn red" data-dq="${i}">🗑️</button></span></div>`).join('')}
   <h3>📊 درجات الطلاب (${S.scores.length})</h3>${S.scores.map(x=>`<div class="item"><span><b>${esc(x.name)}</b> — ${esc(x.score)} <span class="muted">· ${esc(x.title)} · ${GR[x.g]}</span></span></div>`).join('')}
   <h3>📈 الزيارات</h3>${st.length?st.map(x=>`<div class="item"><span>${esc(x[0])}</span><b>${x[1]}</b></div>`).join(''):'<p class="muted">لا زيارات بعد.</p>'}
   <h3>الأكواد (${S.codes.length})</h3>${S.codes.map((c,i)=>`<div class="item"><span dir="ltr"><b>${esc(c.code)}</b></span><span class="muted">${esc(c.name||'')} · ${c.lv==='all'?'VIP':'م'+c.lv}</span><span class="row"><button class="btn" data-cp="${i}">نسخ</button><button class="btn red" data-dc="${i}">🗑️</button></span></div>`).join('')}
   <h3>الكورسات المرفوعة (${S.courses.length})</h3>${S.courses.map((c,i)=>`<div class="item"><span>${esc(c.t)} <span class="muted">· ${c.lv==='0'?'مجاني':c.lv==='all'?'VIP':'م'+c.lv}${c.u?' · 🔗 رابط':''}</span></span><button class="btn red" data-dk="${i}">🗑️ حذف</button></div>`).join('')}
-  <h3>المحتوى المنشور (${S.items.length})</h3>${S.items.map((x,i)=>`<div class="item"><span>${esc(x.t)} <span class="muted">· ${GR[x.g]} · ${x.s==='note'?'مذكرة':'اختبار'}${x.at&&x.at>Date.now()?' · ⏰ مجدولة':''}</span></span><button class="btn red" data-di="${i}">🗑️ حذف</button></div>`).join('')}
+  <h3>المحتوى المنشور (${S.items.length})</h3>${S.items.map((x,i)=>`<div class="item"><span>${esc(x.t)} <span class="muted">· ${GR[x.g]} · ${x.s==='note'?'مذكرة':'اختبار'}${x.fid?' · 📎 ملف':''}${x.at&&x.at>Date.now()?' · ⏰ مجدولة':''}</span></span><button class="btn red" data-di="${i}">🗑️ حذف</button></div>`).join('')}
   <button class="btn" id="lo">خروج</button>`;
   $('#as2').onclick=()=>setDoc(doc(fs,'site','ann'),{text:$('#an').value.trim(),ts:Date.now()}).then(()=>toast('تم نشر الإعلان ✅')).catch(e=>toast('تعذر النشر'));
   $('#ac').onclick=()=>setDoc(doc(fs,'site','ann'),{text:'',ts:Date.now()}).then(()=>toast('تم حذف الإعلان'));
   $('#cg').onclick=async()=>{const a='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c='FC-';for(let i=0;i<8;i++){c+=a[Math.floor(Math.random()*a.length)];if(i==3)c+='-'}
     try{await setDoc(doc(fs,'codes',c),{lv:$('#cl').value,name:$('#cn').value.trim(),ts:Date.now()});try{await navigator.clipboard.writeText(c)}catch(e){}toast('تم توليد الكود '+c)}catch(e){toast('تعذر الحفظ: '+e.code)}};
-  $('#ap').onclick=async()=>{const t=$('#at').value.trim(),u=$('#au').value.trim(),dv=$('#ad').value;if(!t||!/^https?:\/\//i.test(u)){toast('اكتب العنوان ورابطاً يبدأ بـ https');return}
-    const o={g:+$('#ag').value,s:$('#as').value,t,u,ts:Date.now()};if(dv)o.at=new Date(dv).getTime();
-    try{await addDoc(collection(fs,'portal_items'),o);toast(dv?'تمت الجدولة ⏰':'تم النشر ✅')}catch(e){toast('تعذر النشر: '+e.code)}};
+  $('#ap').onclick=async()=>{const t=$('#at').value.trim(),u=$('#au').value.trim(),dv=$('#ad').value,f=$('#af').files[0];
+    if(!t||(!f&&!/^https?:\/\//i.test(u))){toast('اكتب العنوان واختر ملفاً أو الصق رابطاً يبدأ بـ https');return}
+    const o={g:+$('#ag').value,s:$('#as').value,t,ts:Date.now()};if(dv)o.at=new Date(dv).getTime();
+    try{
+      if(f){
+        if(f.size>8*1024*1024){toast('الملف أكبر من 8 ميجا');return}
+        toast('جارٍ التجهيز…');const by=new Uint8Array(await f.arrayBuffer());let b='';for(let k=0;k<by.length;k+=32768)b+=String.fromCharCode.apply(null,by.subarray(k,k+32768));
+        const d=btoa(b),id=Date.now().toString(36),n=Math.ceil(d.length/700000);
+        for(let k=0;k<n;k++){toast('جارٍ الرفع '+(k+1)+' / '+n);await setDoc(doc(fs,'file_chunks',id+'_'+k),{d:d.slice(k*700000,(k+1)*700000)})}
+        o.fid=id;o.n=n;o.mime=f.type||'application/octet-stream';o.fn=f.name;
+      }else o.u=u;
+      await addDoc(collection(fs,'portal_items'),o);toast(dv?'تمت الجدولة ⏰':'تم النشر ✅');$('#af').value='';$('#au').value='';$('#at').value=''
+    }catch(e){toast('تعذر النشر: '+(e.code||e.message))}};
   $('#ak').onclick=upCourse;
   root.querySelectorAll('[data-ra]').forEach(b=>b.onclick=()=>{const q=un[+b.dataset.ra],v=$('#ra'+b.dataset.ra).value.trim();if(!v)return;updateDoc(doc(fs,'questions',q.id),{answer:v}).then(()=>toast('تم الرد ✅'))});
   root.querySelectorAll('[data-dq]').forEach(b=>b.onclick=()=>deleteDoc(doc(fs,'questions',un[+b.dataset.dq].id)).then(()=>toast('تم الحذف 🗑️')));
   root.querySelectorAll('[data-cp]').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(S.codes[b.dataset.cp].code);toast('تم النسخ ✅')}catch(e){toast('تعذر النسخ')}});
   root.querySelectorAll('[data-dc]').forEach(b=>b.onclick=()=>deleteDoc(doc(fs,'codes',S.codes[+b.dataset.dc].code)).then(()=>toast('تم الحذف 🗑️')));
   root.querySelectorAll('[data-dk]').forEach(b=>b.onclick=()=>delCourse(S.courses[+b.dataset.dk]));
-  root.querySelectorAll('[data-di]').forEach(b=>b.onclick=()=>deleteDoc(doc(fs,'portal_items',S.items[+b.dataset.di].id)).then(()=>toast('تم الحذف 🗑️')));
+  root.querySelectorAll('[data-di]').forEach(b=>b.onclick=async()=>{const x=S.items[+b.dataset.di];try{if(x.fid)for(let k=0;k<x.n;k++)await deleteDoc(doc(fs,'file_chunks',x.fid+'_'+k));await deleteDoc(doc(fs,'portal_items',x.id));toast('تم الحذف 🗑️')}catch(e){toast('تعذر الحذف')}});
   $('#lo').onclick=()=>signOut(au)
 }
 function showAnn(){const a=$('#ann');a.textContent='📢 '+S.ann;a.style.display=S.ann?'block':'none'}
