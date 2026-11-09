@@ -109,6 +109,7 @@ const GUARD="<script>(function(){var r=history.replaceState;history.replaceState
 function mk(h){if(_bu)URL.revokeObjectURL(_bu);
   h=/<head[^>]*>/i.test(h)?h.replace(/<head[^>]*>/i,m=>m+GUARD):/<html[^>]*>/i.test(h)?h.replace(/<html[^>]*>/i,m=>m+GUARD):GUARD+h;
   _bu=URL.createObjectURL(new Blob([h],{type:'text/html;charset=utf-8'}));return _bu}
+function pdfDoc(b64){return '<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;background:#333}canvas{display:block;margin:8px auto;max-width:100%;height:auto;background:#fff}#m{color:#fff;text-align:center;padding:24px;font-family:sans-serif}</style></head><body><div id="m">جارٍ تحميل الملف…</div><script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script><script>(async()=>{var m=document.getElementById("m");try{var W="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";var t=await(await fetch(W)).text();pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([t],{type:"text/javascript"}));var d=atob("'+b64+'"),a=new Uint8Array(d.length);for(var i=0;i<d.length;i++)a[i]=d.charCodeAt(i);var p=await pdfjsLib.getDocument({data:a}).promise;m.remove();for(var n=1;n<=p.numPages;n++){var g=await p.getPage(n),v0=g.getViewport({scale:1}),sc=Math.min(2.5,innerWidth*(devicePixelRatio||1)/v0.width),v=g.getViewport({scale:sc}),c=document.createElement("canvas");c.width=v.width;c.height=v.height;document.body.appendChild(c);await g.render({canvasContext:c.getContext("2d"),viewport:v}).promise}}catch(e){m.textContent="تعذر عرض الملف، استخدم زر التحميل"}})()<\/script></body></html>'}
 async function openFile(it,m){
   if(!it)return;toast('جارٍ فتح الملف…');hit('f_'+it.id);
   try{let d='';for(let k=0;k<it.n;k++){const x=await getDoc(doc(fs,'file_chunks',it.fid+'_'+k));d+=x.data().d}
@@ -116,6 +117,7 @@ async function openFile(it,m){
     if(m==='d'){const u=URL.createObjectURL(bl),a=document.createElement('a');a.href=u;a.download=it.fn||'file';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4);return}
     let u;
     if(/html/i.test(mt))u=mk(await bl.text());
+    else if(/pdf/i.test(mt))u=mk(pdfDoc(d));
     else if(/^(application\/pdf|image\/|text\/)/i.test(mt)){if(_bu)URL.revokeObjectURL(_bu);u=_bu=URL.createObjectURL(bl)}
     else{toast('المعاينة غير متاحة لهذا النوع، استخدم زر التحميل');return}
     $('#fr').removeAttribute('srcdoc');$('#fr').src=u;const ex=$('#ext');ex.href=u;ex.style.display='inline-block';$('#ov').style.display='flex'
