@@ -114,11 +114,11 @@ async function openLink(u){
 async function openCourse(c){
   hit('c_'+c.id);
   if(c.u){await openLink(c.u);return}
-  $('#ext').style.display='none';
+
   toast('جارٍ تحميل الكورس…');
   try{let s='';for(let i=0;i<c.n;i++){const d=await getDoc(doc(fs,'course_chunks',c.id+'_'+i));s+=d.data().d}
     const by=Uint8Array.from(atob(s),x=>x.charCodeAt(0));
-    const h=await new Response(new Blob([by]).stream().pipeThrough(new DecompressionStream('gzip'))).text();$('#fr').removeAttribute('srcdoc');$('#fr').src=mk(h);$('#ov').style.display='flex'}
+    const h=await new Response(new Blob([by]).stream().pipeThrough(new DecompressionStream('gzip'))).text();$('#fr').removeAttribute('srcdoc');const bu=mk(h);$('#fr').src=bu;const ex=$('#ext');ex.href=bu;ex.style.display='inline-block';$('#ov').style.display='flex'}
   catch(e){toast('تعذر تحميل الكورس')}
 }
 async function upCourse(){
