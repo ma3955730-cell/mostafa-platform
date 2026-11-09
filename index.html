@@ -67,7 +67,7 @@ header,nav,main,#hero{position:relative;z-index:1}
 <div id="ann"></div>
 <div class="fl" id="fl"></div><div id="hero"></div><nav id="nav"></nav>
 <main id="root"></main>
-<div id="ov"><div class="bar"><button class="btn gold" id="closeOv">✕ رجوع للمنصة</button> <a class="btn" id="ext" target="_blank" rel="noopener" style="display:none;text-decoration:none">↗ فتح في صفحة جديدة</a></div><iframe id="fr" allow="autoplay; speech-synthesis"></iframe></div>
+<div id="ov"><div class="bar"><button class="btn gold" id="closeOv">✕ رجوع للمنصة</button> <a class="btn" id="ext" target="_blank" rel="noopener" style="display:none;text-decoration:none">↗ فتح في صفحة جديدة</a></div><iframe id="fr" allow="autoplay; speech-synthesis; microphone; fullscreen"></iframe></div>
 <div id="toast"></div>
 <script type="module" id="app">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -95,6 +95,11 @@ async function tryCode(l,c){
   if(!got){toast('الكود غير صحيح ❌');return}
   const u=ls.get('unl');u.push(got);ls.set('unl',u);toast('تم فتح الكورس ✅');render()
 }
+let _bu=null;
+const GUARD="<script>(function(){var r=history.replaceState;history.replaceState=function(){try{return r.apply(history,arguments)}catch(e){}}})();document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a');if(!a)return;var h=a.getAttribute('href');if(h===null)return;if(h.charAt(0)==='#'){e.preventDefault();if(h.length>1){var t=document.getElementById(decodeURIComponent(h.slice(1)))||document.getElementsByName(h.slice(1))[0];if(t)t.scrollIntoView({behavior:'smooth'})}return}if(/^(https?:)?\\/\\//i.test(h)){a.target='_blank';a.rel='noopener';return}if(/^(mailto|tel|javascript|blob|data):/i.test(h))return;e.preventDefault()},true);document.addEventListener('submit',function(e){e.preventDefault()});<\/script>";
+function mk(h){if(_bu)URL.revokeObjectURL(_bu);
+  h=/<head[^>]*>/i.test(h)?h.replace(/<head[^>]*>/i,m=>m+GUARD):/<html[^>]*>/i.test(h)?h.replace(/<html[^>]*>/i,m=>m+GUARD):GUARD+h;
+  _bu=URL.createObjectURL(new Blob([h],{type:'text/html;charset=utf-8'}));return _bu}
 async function openLink(u){
   u=safe(u);const g=u.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);if(g)u='https://raw.githubusercontent.com/'+g[1]+'/'+g[2]+'/'+g[3];
   const ex=$('#ext');ex.href=u;ex.style.display='inline-block';toast('جارٍ فتح الكورس…');
@@ -102,7 +107,7 @@ async function openLink(u){
   try{const r=await fetch(u);if(!r.ok)throw 0;let h=await r.text();
     if(!/<\s*(html|body|div|script)/i.test(h))throw 0;
     if(!/<base\s/i.test(h))h=h.replace(/<head([^>]*)>/i,'<head$1><base href="'+u.replace(/[^/]*$/,'')+'">');
-    fr.srcdoc=h}
+    fr.src=mk(h)}
   catch(e){fr.src=u}
   $('#ov').style.display='flex'
 }
@@ -113,7 +118,7 @@ async function openCourse(c){
   toast('جارٍ تحميل الكورس…');
   try{let s='';for(let i=0;i<c.n;i++){const d=await getDoc(doc(fs,'course_chunks',c.id+'_'+i));s+=d.data().d}
     const by=Uint8Array.from(atob(s),x=>x.charCodeAt(0));
-    $('#fr').srcdoc=await new Response(new Blob([by]).stream().pipeThrough(new DecompressionStream('gzip'))).text();$('#ov').style.display='flex'}
+    const h=await new Response(new Blob([by]).stream().pipeThrough(new DecompressionStream('gzip'))).text();$('#fr').removeAttribute('srcdoc');$('#fr').src=mk(h);$('#ov').style.display='flex'}
   catch(e){toast('تعذر تحميل الكورس')}
 }
 async function upCourse(){
@@ -130,7 +135,7 @@ async function upCourse(){
   }catch(e){toast('تعذر الرفع: '+(e.code||e.message))}
 }
 async function delCourse(c){try{for(let i=0;i<c.n;i++)await deleteDoc(doc(fs,'course_chunks',c.id+'_'+i));await deleteDoc(doc(fs,'courses',c.id));toast('تم الحذف 🗑️')}catch(e){toast('تعذر الحذف')}}
-$('#closeOv').onclick=()=>{$('#ov').style.display='none';$('#fr').removeAttribute('src');$('#fr').srcdoc=''};
+$('#closeOv').onclick=()=>{$('#ov').style.display='none';$('#fr').removeAttribute('src');$('#fr').srcdoc='';if(_bu){URL.revokeObjectURL(_bu);_bu=null}};
 function nav(){
   const t=[['courses','📚 الكورسات'],['portal','🏫 بوابة الصفوف'],['admin','🔐 المعلم']];
   $('#nav').innerHTML=t.map(x=>`<button class="tab ${tab===x[0]?'on':''}" data-t="${x[0]}">${x[1]}</button>`).join('');
