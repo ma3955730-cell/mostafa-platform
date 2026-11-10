@@ -71,7 +71,7 @@ header,nav,main,#hero{position:relative;z-index:1}
 <div id="toast"></div>
 <script type="module" id="app">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {getFirestore,collection,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,limit,increment} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,limit,increment,getDocs,where,deleteField} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 const app=initializeApp({apiKey:"AIzaSyBN8FF0p5-xDn5DppaXIJ1i_7YKO2JGKrY",authDomain:"mostafa-platform.firebaseapp.com",projectId:"mostafa-platform",storageBucket:"mostafa-platform.firebasestorage.app",messagingSenderId:"20118814201",appId:"1:20118814201:web:bad20b6b61c2e254c4d128"});
 const fs=getFirestore(app),au=getAuth(app);
@@ -102,6 +102,8 @@ async function tryCode(l,c){
 }
 
 let editId=null;
+function dl(data,name,type){const u=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4)}
+
 const SITE=()=>location.origin+location.pathname;
 const shareWA=t=>window.open('https://wa.me/?text='+encodeURIComponent(t+'\n'+SITE()),'_blank');
 function coverData(f){return new Promise(r=>{if(!f)return r('');const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{const w=Math.min(480,im.width),h=Math.round(im.height*w/im.width),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);URL.revokeObjectURL(u);r(c.toDataURL('image/jpeg',.65))};im.onerror=()=>r('');im.src=u})}
@@ -184,6 +186,7 @@ function courses(){
   root.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>openCourse(cs[b.dataset.o]));
   root.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>tryCode(cs[b.dataset.c].lv,$('#c'+b.dataset.c).value))
 }
+function topBox(i){return `<div class="qb"><b>🏆 أوائل الاختبار</b>${i.top.map((x,k)=>`<div class="q">${['🥇','🥈','🥉'][k]||(k+1)+')'} <b>${esc(x.n)}</b> — ${esc(x.s)}</div>`).join('')}</div>`}
 function qBox(i){
   const qs=S.qs.filter(q=>q.item===i.id);
   return `<div class="qb"><div class="muted">أسئلة الطلاب</div>${qs.length?qs.map(q=>`<div class="q"><b>${esc(q.name)}:</b> ${esc(q.text)}${q.answer?`<div class="ans">👨‍🏫 ${esc(q.answer)}</div>`:''}</div>`).join(''):'<div class="muted">لا توجد أسئلة بعد.</div>'}<input id="qn" placeholder="اسمك" maxlength="60"><input id="qt" placeholder="اكتب سؤالك" maxlength="500"><button class="btn gold" data-qs="${i.id}">إرسال السؤال</button></div>`
@@ -193,38 +196,52 @@ function portal(){
   if(grade===null){
     root.innerHTML='<h3 style="color:var(--gold)">اختر الصف الدراسي</h3><div class="grid">'+GR.map((g,i)=>{const n=S.items.filter(x=>x.g===i&&vis(x));return `<div class="card gc s${i<6?1:i<9?2:3}" style="animation-delay:${i*45}ms" data-g="${i}"><div class="ic">${i<6?'🎒':i<9?'📘':'🎓'}</div><h3>${g}</h3><p>${n.filter(x=>x.s==='note').length} مذكرة · ${n.filter(x=>x.s==='exam').length} اختبار</p></div>`}).join('')+'</div>';
     root.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{grade=+b.dataset.g;hit('g'+grade);portal()});return}
-  const items=S.items.filter(i=>i.g===grade&&i.s===sec&&vis(i));
+  const items=S.items.filter(i=>i.g===grade&&i.s===sec&&vis(i)).sort((a,b)=>(b.pin?1:0)-(a.pin?1:0));
   root.innerHTML=`<div class="row"><button class="btn" id="bk">→ كل الصفوف</button><h3 style="margin:0;color:var(--gold)">${GR[grade]}</h3></div>
-  <div class="row" style="margin:10px 0"><button class="tab ${sec==='note'?'on':''}" data-s="note">📄 مذكرات وكتب</button><button class="tab ${sec==='exam'?'on':''}" data-s="exam">📝 اختبارات</button></div>
-  ${items.length?items.map(i=>`<div class="item2"><div class="item" style="margin:0;border:0"><b>${esc(i.t)}</b><span class="row">${i.fid?`<button class="btn gold" data-fo="${i.id}" data-m="v">👁️ معاينة</button><button class="btn" data-fo="${i.id}" data-m="d">⬇️ تحميل</button>`:`<a class="btn gold" target="_blank" rel="noopener" href="${esc(safe(i.u))}">${sec==='note'?'👁️ فتح / تحميل':'ابدأ'}</a>`}${sec==='exam'?`<button class="btn em" data-sb="${i.id}">📊 درجتي</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${WA}?text=${encodeURIComponent('درجتي في '+i.t+' ('+GR[i.g]+'): ')}">📲 واتساب</a>`:''}<button class="btn" data-sh="${i.id}">📲</button><button class="btn" data-qb="${i.id}">💬 أسئلة (${S.qs.filter(q=>q.item===i.id).length})</button></span></div>${openQ===i.id?qBox(i):''}${openS===i.id?sBox(i):''}</div>`).join(''):'<p class="muted">لا يوجد محتوى منشور لهذا القسم بعد.</p>'}`;
+  <div class="row" style="margin:10px 0"><button class="tab ${sec==='note'?'on':''}" data-s="note">📄 مذكرات وكتب</button><button class="tab ${sec==='exam'?'on':''}" data-s="exam">📝 اختبارات</button></div><input id="sq" placeholder="🔎 ابحث بالعنوان…" style="margin:6px 0">
+  ${items.length?items.map(i=>`<div class="item2" data-t="${esc(i.t).toLowerCase()}"><div class="item" style="margin:0;border:0"><b>${i.pin?'📌 ':''}${esc(i.t)}${(Date.now()-(i.at||i.ts||0))<6048e5?' 🆕':''}</b><span class="row">${i.fid?`<button class="btn gold" data-fo="${i.id}" data-m="v">👁️ معاينة</button><button class="btn" data-fo="${i.id}" data-m="d">⬇️ تحميل</button>`:`<a class="btn gold" data-lk="${i.id}" target="_blank" rel="noopener" href="${esc(safe(i.u))}">${sec==='note'?'👁️ فتح / تحميل':'ابدأ'}</a>`}${sec==='exam'?`<button class="btn em" data-sb="${i.id}">📊 درجتي</button><a class="btn" target="_blank" rel="noopener" href="https://wa.me/${WA}?text=${encodeURIComponent('درجتي في '+i.t+' ('+GR[i.g]+'): ')}">📲 واتساب</a>`:''}<button class="btn" data-sh="${i.id}">📲</button><button class="btn" data-qb="${i.id}">💬 أسئلة${S.qs.some(q=>q.item===i.id)?' ('+S.qs.filter(q=>q.item===i.id).length+')':''}</button></span></div>${i.top?topBox(i):''}${openQ===i.id?qBox(i):''}${openS===i.id?sBox(i):''}</div>`).join(''):'<p class="muted">لا يوجد محتوى منشور لهذا القسم بعد.</p>'}`;
   $('#bk').onclick=()=>{grade=null;portal()};
+  $('#sq').oninput=e=>{const v=e.target.value.trim().toLowerCase();root.querySelectorAll('.item2').forEach(el=>{el.style.display=el.dataset.t.includes(v)?'':'none'})};
+  root.querySelectorAll('[data-lk]').forEach(a=>a.addEventListener('click',()=>hit('i_'+a.dataset.lk)));
   root.querySelectorAll('[data-fo]').forEach(b=>b.onclick=()=>openFile(S.items.find(x=>x.id===b.dataset.fo),b.dataset.m));
   root.querySelectorAll('[data-sh]').forEach(b=>b.onclick=()=>{const x=S.items.find(y=>y.id===b.dataset.sh);shareWA((x.s==='exam'?'📝 اختبار «':'📄 مذكرة «')+x.t+'» - '+GR[x.g]+' على منصة مستر مصطفى أحمد')});
   root.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{sec=b.dataset.s;openQ=openS=null;portal()});
-  root.querySelectorAll('[data-qb]').forEach(b=>b.onclick=()=>{openQ=openQ===b.dataset.qb?null:b.dataset.qb;openS=null;portal()});
+  root.querySelectorAll('[data-qb]').forEach(b=>b.onclick=async()=>{openQ=openQ===b.dataset.qb?null:b.dataset.qb;openS=null;if(openQ&&!admin)await loadQs(openQ);portal()});
   root.querySelectorAll('[data-sb]').forEach(b=>b.onclick=()=>{openS=openS===b.dataset.sb?null:b.dataset.sb;openQ=null;portal()});
   root.querySelectorAll('[data-qs]').forEach(b=>b.onclick=async()=>{const n=$('#qn').value.trim(),t=$('#qt').value.trim();if(!n||!t){toast('اكتب اسمك وسؤالك');return}
-    try{await addDoc(collection(fs,'questions'),{item:b.dataset.qs,name:n,text:t,ts:Date.now()});toast('تم إرسال سؤالك ✅')}catch(e){toast('تعذر الإرسال')}});
+    try{await addDoc(collection(fs,'questions'),{item:b.dataset.qs,name:n,text:t,ts:Date.now()});toast('تم إرسال سؤالك ✅');await loadQs(b.dataset.qs);portal()}catch(e){toast('تعذر الإرسال')}});
   root.querySelectorAll('[data-ss]').forEach(b=>b.onclick=async()=>{const n=$('#sn').value.trim(),v=$('#sv').value.trim();const it=S.items.find(x=>x.id===b.dataset.ss);if(!n||!v){toast('اكتب اسمك ودرجتك');return}
     try{await addDoc(collection(fs,'scores'),{item:it.id,title:it.t,g:it.g,name:n,score:v,ts:Date.now()});openS=null;toast('تم حفظ درجتك ✅');portal()}catch(e){toast('تعذر الحفظ')}})
 }
 function adminView(){
   if(!admin){root.innerHTML='<div class="card" style="max-width:380px;margin:auto"><h3>دخول المعلم</h3><input id="em" dir="ltr" placeholder="البريد الإلكتروني"><input id="pw" type="password" dir="ltr" placeholder="كلمة المرور"><button class="btn gold" id="go">دخول</button></div>';
     $('#go').onclick=async()=>{try{await signInWithEmailAndPassword(au,$('#em').value.trim(),$('#pw').value);toast('أهلاً مستر مصطفى 👋')}catch(e){toast('بيانات الدخول غير صحيحة ❌')}};return}
-  const st=Object.entries(S.stats).map(([k,v])=>{const n=k[0]==='g'?GR[+k.slice(1)]:(S.courses.find(c=>'c_'+c.id===k)||{}).t||k;return[n,v]}).sort((a,b)=>b[1]-a[1]);
+  const st=Object.entries(S.stats).map(([k,v])=>{let n;if(k[0]==='g')n=GR[+k.slice(1)];else if(k.startsWith('c_'))n=(S.courses.find(c=>'c_'+c.id===k)||{}).t||k;else if(/^[if]_/.test(k))n='📄 '+((S.items.find(x=>x.id===k.slice(2))||{}).t||k);else n=k;return[n,v,k]}).sort((a,b)=>b[1]-a[1]);
   const un=S.qs.filter(q=>!q.answer);
   root.innerHTML=`<div class="grid">
   <div class="card"><h3>📢 إعلان للطلاب</h3><input id="an" placeholder="نص الإعلان" value="${esc(S.ann)}"><div class="row"><button class="btn gold" id="as2">نشر</button><button class="btn red" id="ac">حذف الإعلان</button></div></div>
+  <div class="card"><h3>💾 نسخة احتياطية</h3><p class="muted">تنزّل المحتوى والكورسات والأكواد والدرجات في ملف واحد (بدون محتوى الملفات المرفوعة).</p><button class="btn gold" id="bkp">تنزيل النسخة</button></div>
   <div class="card"><h3>🔑 مولّد الأكواد</h3><select id="cl"><option value="1">المستوى 1</option><option value="2">المستوى 2</option><option value="3">المستوى 3</option><option value="all">VIP (الكل)</option></select><input id="cc" dir="ltr" placeholder="الكود: اكتبه بنفسك أو اتركه فارغاً للتوليد التلقائي" maxlength="24"><button class="btn" id="sgb" type="button">🎲 اقترح أكواد</button><div class="row" id="sg" style="margin:6px 0"></div><input id="cn" placeholder="اسم الطالب / ملاحظة"><input id="cm" type="number" min="1" placeholder="أقصى عدد استخدامات (فارغ = بلا حد)"><input id="ce" type="number" min="1" placeholder="صلاحية بالأيام (فارغ = بلا انتهاء)"><button class="btn gold" id="cg">توليد وحفظ الكود</button></div>
   <div class="card"><h3>📤 نشر مذكرة / اختبار</h3><select id="ag">${GR.map((g,i)=>`<option value="${i}">${g}</option>`).join('')}</select><select id="as"><option value="note">مذكرات وكتب</option><option value="exam">اختبارات</option></select><input id="at" placeholder="العنوان"><input id="af" type="file"><div class="muted" style="text-align:center">— أو —</div><input id="au" dir="ltr" placeholder="🔗 رابط (Drive / Forms) يبدأ بـ https"><label class="muted">يظهر للطلاب في (اختياري):</label><input id="ad" type="datetime-local"><button class="btn em" id="ap">نشر</button></div>
   <div class="card"><h3>🎓 رفع كورس</h3><input id="kt" placeholder="اسم الكورس"><select id="kl"><option value="0">مجاني للجميع</option><option value="1">يفتح بكود المستوى 1</option><option value="2">يفتح بكود المستوى 2</option><option value="3">يفتح بكود المستوى 3</option><option value="all">VIP فقط</option></select><input id="kd" placeholder="وصف قصير للكورس (اختياري)" maxlength="120"><label class="muted">صورة غلاف (اختياري):</label><input id="kc" type="file" accept="image/*"><input id="kf" type="file" accept=".html,text/html"><div class="muted" style="text-align:center">— أو —</div><input id="ku" dir="ltr" placeholder="🔗 الصق رابط الكورس هنا (https://...)"><button class="btn em" id="ak">رفع ونشر الكورس</button><p class="muted">اختار ملف HTML أو الصق رابط (لو حطيت الاتنين الملف هو اللي يترفع). الرفع قد يأخذ دقيقة.</p></div></div>
   <h3>💬 أسئلة تنتظر ردك (${un.length})</h3>${un.map((q,i)=>`<div class="item"><span><b>${esc(q.name)}:</b> ${esc(q.text)}<br><span class="muted">${esc((S.items.find(x=>x.id===q.item)||{}).t||'')}</span></span><span class="row"><input id="ra${i}" placeholder="ردك" style="width:200px;margin:0"><button class="btn em" data-ra="${i}">رد</button><button class="btn red" data-dq="${i}">🗑️</button></span></div>`).join('')}
-  <h3>📊 درجات الطلاب (${S.scores.length})</h3>${S.scores.map(x=>`<div class="item"><span><b>${esc(x.name)}</b> — ${esc(x.score)} <span class="muted">· ${esc(x.title)} · ${GR[x.g]}</span></span></div>`).join('')}
-  <h3>📈 الزيارات</h3>${st.length?st.map(x=>`<div class="item"><span>${esc(x[0])}</span><b>${x[1]}</b></div>`).join(''):'<p class="muted">لا زيارات بعد.</p>'}
+  <h3>📊 درجات الطلاب (${S.scores.length}) ${S.scores.length?'<button class="btn" id="ex">⬇️ تصدير Excel</button>':''}</h3>${S.scores.map(x=>`<div class="item"><span><b>${esc(x.name)}</b> — ${esc(x.score)} <span class="muted">· ${esc(x.title)} · ${GR[x.g]}</span></span></div>`).join('')}
+  <h3>📈 الزيارات ${st.length?'<button class="btn red" id="dv">🗑️ حذف كل الزوار</button>':''}</h3>${st.length?st.map(x=>`<div class="item"><span>${esc(x[0])}</span><span class="row"><b>${x[1]}</b><button class="btn red" data-vk="${esc(x[2])}">✖</button></span></div>`).join(''):'<p class="muted">لا زيارات بعد.</p>'}
   <h3>الأكواد (${S.codes.length})</h3>${S.codes.map((c,i)=>`<div class="item"><span dir="ltr"><b>${esc(c.code)}</b></span><span class="muted">${esc(c.name||'')} · ${c.lv==='all'?'VIP':'م'+c.lv} ${c.blocked?' · ⛔ محظور':''} · 👥 ${c.used||0}/${c.max||'∞'}${c.exp?' · ⌛ '+(c.exp<Date.now()?'منتهي':new Date(c.exp).toLocaleDateString('ar-EG')):''}</span><span class="row"><button class="btn" data-bk="${i}">${c.blocked?'✅ تفعيل':'⛔ حظر'}</button><button class="btn" data-cp="${i}">نسخ</button><button class="btn red" data-dc="${i}">🗑️</button></span></div>`).join('')}
   <h3>الكورسات المرفوعة (${S.courses.length})</h3>${S.courses.map((c,i)=>`<div class="item"><span>${esc(c.t)} <span class="muted">· ${c.lv==='0'?'مجاني':c.lv==='all'?'VIP':'م'+c.lv}${c.u?' · 🔗 رابط':''}</span></span><button class="btn red" data-dk="${i}">🗑️ حذف</button></div>`).join('')}
-  <h3>المحتوى المنشور (${S.items.length})</h3>${S.items.map((x,i)=>`<div class="item"><span>${esc(x.t)} <span class="muted">· ${GR[x.g]} · ${x.s==='note'?'مذكرة':'اختبار'}${x.fid?' · 📎 ملف':''}${x.at&&x.at>Date.now()?' · ⏰ مجدولة':''}</span></span><span class="row"><button class="btn" data-ed="${i}">✏️ تعديل</button><button class="btn red" data-di="${i}">🗑️ حذف</button></span></div>`).join('')}
+  <h3>المحتوى المنشور (${S.items.length})</h3>${S.items.map((x,i)=>`<div class="item"><span>${esc(x.t)} <span class="muted">· ${GR[x.g]} · ${x.s==='note'?'مذكرة':'اختبار'}${x.fid?' · 📎 ملف':''}${x.at&&x.at>Date.now()?' · ⏰ مجدولة':''}${x.pin?' · 📌':''} · 👁️ ${(S.stats['i_'+x.id]||0)+(S.stats['f_'+x.id]||0)}</span></span><span class="row"><button class="btn" data-pn="${i}">${x.pin?'📌 إلغاء':'📌 تثبيت'}</button>${x.s==='exam'?`<button class="btn" data-tp="${i}">${x.top?'🏆 إخفاء':'🏆 الأوائل'}</button>`:''}<button class="btn" data-ed="${i}">✏️ تعديل</button><button class="btn red" data-di="${i}">🗑️ حذف</button></span></div>`).join('')}
   <button class="btn" id="lo">خروج</button>`;
+  const rmK=async ks=>{toast('جارٍ الحذف…');try{for(const k of ks)await updateDoc(doc(fs,'stats','visits'),{[k]:deleteField()});toast('تم الحذف 🗑️')}catch(e){toast('تعذر الحذف')}};
+  if($('#dv'))$('#dv').onclick=()=>{if(confirm('حذف كل بيانات الزيارات؟'))rmK(Object.keys(S.stats))};
+  root.querySelectorAll('[data-vk]').forEach(b=>b.onclick=()=>rmK([b.dataset.vk]));
+  if($('#ex'))$('#ex').onclick=()=>{const r=[...S.scores].sort((a,b)=>a.g-b.g||String(a.title).localeCompare(String(b.title),'ar')||(parseFloat(b.score)||0)-(parseFloat(a.score)||0)),q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';dl('\ufeff'+['الصف,الاختبار,الاسم,الدرجة,التاريخ',...r.map(x=>[GR[x.g],x.title,x.name,x.score,new Date(x.ts||0).toLocaleDateString('ar-EG')].map(q).join(','))].join('\n'),'درجات-الطلاب.csv','text/csv')};
+  $('#bkp').onclick=()=>dl(JSON.stringify({date:new Date().toISOString(),announcement:S.ann,items:S.items,courses:S.courses,codes:S.codes,scores:S.scores,stats:S.stats},null,1),'نسخة-احتياطية-'+new Date().toISOString().slice(0,10)+'.json','application/json');
+  root.querySelectorAll('[data-pn]').forEach(b=>b.onclick=()=>{const x=S.items[+b.dataset.pn];updateDoc(doc(fs,'portal_items',x.id),{pin:!x.pin}).then(()=>toast(x.pin?'اتلغى التثبيت':'تم التثبيت 📌')).catch(()=>toast('تعذر التنفيذ'))});
+  root.querySelectorAll('[data-tp]').forEach(b=>b.onclick=async()=>{const x=S.items[+b.dataset.tp];try{
+    if(x.top){await updateDoc(doc(fs,'portal_items',x.id),{top:deleteField()});toast('تم إخفاء الأوائل');return}
+    const r=S.scores.filter(y=>y.item===x.id).map(y=>({n:y.name,s:y.score,v:parseFloat(String(y.score).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)))||0})).sort((a,c)=>c.v-a.v).slice(0,5).map(({n,s})=>({n,s}));
+    if(!r.length){toast('مفيش درجات لهذا الاختبار');return}
+    await updateDoc(doc(fs,'portal_items',x.id),{top:r});toast('تم نشر الأوائل 🏆')}catch(e){toast('تعذر التنفيذ')}});
   $('#as2').onclick=()=>setDoc(doc(fs,'site','ann'),{text:$('#an').value.trim(),ts:Date.now()}).then(()=>toast('تم نشر الإعلان ✅')).catch(e=>toast('تعذر النشر'));
   $('#ac').onclick=()=>setDoc(doc(fs,'site','ann'),{text:'',ts:Date.now()}).then(()=>toast('تم حذف الإعلان'));
   const taken=c=>S.codes.some(x=>x.code===c)||[].concat(MASTER.all,MASTER[1],MASTER[2],MASTER[3]).includes(c);
@@ -268,19 +285,27 @@ function adminView(){
 }
 function showAnn(){const a=$('#ann');a.textContent='📢 '+S.ann;a.style.display=S.ann?'block':'none'}
 
-function hero(){const h=$('#hero');if(!h)return;h.innerHTML=`<div class="hb"><div class="st"><b>${S.courses.length}</b><span>📚 كورس</span></div><div class="st"><b>${S.items.filter(vis).length}</b><span>📄 مذكرة واختبار</span></div><div class="st"><b>12</b><span>🏫 صف دراسي</span></div></div><div style="text-align:center;margin-top:10px"><button class="btn gold" id="shp">📲 شارك المنصة على واتساب</button></div>`;$('#shp').onclick=()=>shareWA('🎓 منصة مستر مصطفى أحمد التعليمية - كورسات ومذكرات واختبارات لكل الصفوف')}
+function hero(){const h=$('#hero');if(!h)return;h.innerHTML=`<div class="hb"><div class="st"><b>${S.courses.length}</b><span>📚 كورس</span></div><div class="st"><b>${S.items.filter(vis).length}</b><span>📄 مذكرة واختبار</span></div><div class="st"><b>12</b><span>🏫 صف دراسي</span></div></div><div style="text-align:center;margin-top:10px"><button class="btn gold" id="shp">📲 شارك المنصة على واتساب</button> <button class="btn" id="rf">🔄 تحديث المحتوى</button></div>`;$('#rf').onclick=async()=>{toast('جارٍ التحديث…');await loadPub(true);toast('تم التحديث ✅')};$('#shp').onclick=()=>shareWA('🎓 منصة مستر مصطفى أحمد التعليمية - كورسات ومذكرات واختبارات لكل الصفوف')}
 (function(){const f=$('#fl');['⭐','📚','✏️','🎓','💡','🔤'].forEach((e,k)=>{for(let j=0;j<3;j++){const i=document.createElement('i');i.textContent=e;i.style.cssText=`right:${Math.random()*95}%;font-size:${16+Math.random()*18}px;animation-duration:${14+Math.random()*16}s;animation-delay:-${Math.random()*20}s`;f.appendChild(i)}})})();
 function render(){hero();nav();showAnn();({courses,portal,admin:adminView})[tab]()}
 const sn=(q,f)=>onSnapshot(q,f,()=>{});
-sn(query(collection(fs,'portal_items'),orderBy('ts','desc')),s=>{S.items=s.docs.map(d=>({id:d.id,...d.data()}));render()});
-sn(query(collection(fs,'courses'),orderBy('ts','asc')),s=>{S.courses=s.docs.map(d=>({id:d.id,...d.data()}));render()});
-sn(query(collection(fs,'questions'),orderBy('ts','desc'),limit(300)),s=>{S.qs=s.docs.map(d=>({id:d.id,...d.data()}));render()});
+async function loadPub(force){
+  try{const c=JSON.parse(localStorage.getItem('pubc')||'null');if(!force&&c&&Date.now()-c.t<9e5){S.items=c.i;S.courses=c.c;render();return}}catch(e){}
+  try{const [a,b]=await Promise.all([getDocs(query(collection(fs,'portal_items'),orderBy('ts','desc'))),getDocs(query(collection(fs,'courses'),orderBy('ts','asc')))]);
+    S.items=a.docs.map(d=>({id:d.id,...d.data()}));S.courses=b.docs.map(d=>({id:d.id,...d.data()}));
+    try{localStorage.setItem('pubc',JSON.stringify({t:Date.now(),i:S.items,c:S.courses}))}catch(e){}render()}catch(e){}
+}
+async function loadQs(id){try{const r=await getDocs(query(collection(fs,'questions'),where('item','==',id)));S.qs=S.qs.filter(q=>q.item!==id).concat(r.docs.map(d=>({id:d.id,...d.data()})).sort((x,y)=>(y.ts||0)-(x.ts||0)))}catch(e){}}
+loadPub();
 sn(doc(fs,'site','ann'),d=>{S.ann=d.exists()?(d.data().text||''):'';showAnn()});
 recheck();
 onAuthStateChanged(au,u=>{admin=!!u&&u.email===ADMIN;unsubs.forEach(f=>f());unsubs=[];S.codes=[];S.scores=[];S.stats={};
   if(admin){
+    unsubs.push(onSnapshot(query(collection(fs,'portal_items'),orderBy('ts','desc')),r=>{S.items=r.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
+    unsubs.push(onSnapshot(query(collection(fs,'courses'),orderBy('ts','asc')),r=>{S.courses=r.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
+    unsubs.push(onSnapshot(query(collection(fs,'questions'),orderBy('ts','desc'),limit(300)),r=>{S.qs=r.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{}));
     unsubs.push(onSnapshot(collection(fs,'codes'),s=>{S.codes=s.docs.map(d=>({code:d.id,...d.data()})).sort((a,b)=>(b.ts||0)-(a.ts||0));render()},()=>{}));
-    unsubs.push(onSnapshot(query(collection(fs,'scores'),orderBy('ts','desc'),limit(200)),s=>{S.scores=s.docs.map(d=>d.data());render()},()=>{}));
+    unsubs.push(onSnapshot(query(collection(fs,'scores'),orderBy('ts','desc'),limit(500)),s=>{S.scores=s.docs.map(d=>d.data());render()},()=>{}));
     unsubs.push(onSnapshot(doc(fs,'stats','visits'),d=>{S.stats=d.exists()?d.data():{};render()},()=>{}))}
   render()});
 render();
